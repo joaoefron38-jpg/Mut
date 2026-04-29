@@ -5,12 +5,12 @@ import { BETTING_HOUSES } from './constants.tsx';
 import Layout from './components/Layout.tsx';
 import SignalHistory from './components/SignalHistory.tsx';
 import { GoogleGenAI } from "@google/genai";
-import { db, auth, OperationType, handleFirestoreError } from './src/firebase';
+import { db, auth, OperationType, handleFirestoreError, isFirebaseConfigured } from './src/firebase';
 import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, User } from 'firebase/auth';
 import { onSnapshot, doc, collection, setDoc, updateDoc, deleteDoc, getDoc, getDocFromServer, getDocs, writeBatch, addDoc } from 'firebase/firestore';
 
 const PREDEFINED_THEMES: ThemeConfig[] = [
-  { id: 'venom', name: 'Venom Elite', mode: 'dark', accentColor: '#00FF9D', brightness: 100, contrast: 100 },
+  { id: 'venom', name: 'DARK BOT', mode: 'dark', accentColor: '#00FF9D', brightness: 100, contrast: 100 },
   { id: 'cyber', name: 'Cyber Blue', mode: 'dark', accentColor: '#00D1FF', brightness: 110, contrast: 105 },
   { id: 'royal', name: 'Royal Gold', mode: 'dark', accentColor: '#FFD700', brightness: 100, contrast: 110 },
   { id: 'neon', name: 'Neon Purple', mode: 'dark', accentColor: '#BD00FF', brightness: 100, contrast: 100 },
@@ -20,7 +20,7 @@ const PREDEFINED_THEMES: ThemeConfig[] = [
 const GLOBAL_ALERTS = [
   { type: 'info', message: 'Sincronização com Elephant Bet otimizada v5.5.2' },
   { type: 'alert', message: 'Volume alto detectado na Premier Bet - Ciclo de Rosa iminente!' },
-  { type: 'success', message: 'Script Venom.hack-v5.5 operando com 99.4% de precisão.' },
+  { type: 'success', message: 'Script DARK.hack-v1.0 operando com 99.4% de precisão.' },
   { type: 'critical', message: 'Instabilidade no servidor Olá Bet - Evite entradas grandes agora.' },
   { type: 'info', message: 'Agenda Elite atualizada com novos padrões de Moçambique.' }
 ];
@@ -157,16 +157,29 @@ const App: React.FC = () => {
   const [serverSeed, setServerSeed] = useState('');
 
   const [settings, setSettings] = useState({
-    precision: 99.8,
+    precision: 99.9,
     minInterval: 2,
     autoScan: true,
-    algorithm: 'Venom.Elite-v6.0'
+    algorithm: 'DARK.BOT-v2.0'
   });
 
   const [themeConfig, setThemeConfig] = useState<ThemeConfig>(PREDEFINED_THEMES[0]);
   const [hasApiKey, setHasApiKey] = useState(false);
 
   useEffect(() => {
+    if (!isFirebaseConfigured()) {
+      console.log("Firebase not configured. Using local state for settings.");
+      // Load from localStorage or use defaults
+      const savedBotOpen = localStorage.getItem('isBotOpen');
+      const savedBotMessage = localStorage.getItem('botClosedMessage');
+      const savedAdminWA = localStorage.getItem('adminWhatsApp');
+      
+      if (savedBotOpen !== null) setIsBotOpen(savedBotOpen === 'true');
+      if (savedBotMessage) setBotClosedMessage(savedBotMessage);
+      if (savedAdminWA) setAdminWhatsApp(savedAdminWA);
+      return;
+    }
+
     const unsub = onSnapshot(doc(db, 'appSettings', 'global'), (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
@@ -190,6 +203,8 @@ const App: React.FC = () => {
 
   // Test connection on boot
   useEffect(() => {
+    if (!isFirebaseConfigured()) return;
+    
     const testConnection = async (retryCount = 0) => {
       try {
         console.log(`Testing Firestore connection (Attempt ${retryCount + 1}) with DB ID:`, db.app.options.projectId);
@@ -286,15 +301,41 @@ const App: React.FC = () => {
     localStorage.setItem('botClosedMessage', botClosedMessage);
   }, [isBotOpen, botClosedMessage]);
 
-  const handleBuyAccess = () => {
+  const handleBuyAccess = async () => {
     if (!selectedPlan) return;
-    setPaymentStatus('success');
-    triggerToast("INSTRUÇÕES DE PAGAMENTO GERADAS!");
+    setPaymentStatus('pending');
+    triggerToast("INICIANDO PROTOCOLO DE PAGAMENTO...");
+
+    try {
+      const response = await fetch('/api/pay', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          method: paymentMethod,
+          phone: adminWhatsApp, // Using current admin phone as mock payer
+          amount: selectedPlan.price.split(' ')[0],
+          plan: selectedPlan.name
+        })
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setPaymentStatus('success');
+        triggerToast(data.message);
+      } else {
+        setPaymentStatus('error');
+        triggerToast("ERRO NA TRANSAÇÃO");
+      }
+    } catch (err) {
+      console.error("Payment API Error:", err);
+      setPaymentStatus('error');
+      triggerToast("ERRO DE CONEXÃO COM O SERVIDOR");
+    }
   };
 
   const sendReceiptToAdmin = () => {
     const adminPhone = paymentMethod === 'mpesa' ? '258845550673' : '258873361445';
-    const message = encodeURIComponent(`Olá ADM Venom, realizei o pagamento via ${paymentMethod.toUpperCase()} para o plano ${selectedPlan?.name}.\nValor: ${selectedPlan?.price}\n\n[ENVIE O PRINT DO COMPROVATIVO AQUI]`);
+    const message = encodeURIComponent(`Olá ADM DARK, realizei o pagamento via ${paymentMethod.toUpperCase()} para o plano ${selectedPlan?.name}.\nValor: ${selectedPlan?.price}\n\n[ENVIE O PRINT DO COMPROVATIVO AQUI]`);
     window.open(`https://wa.me/${adminPhone}?text=${message}`, '_blank');
     
     // Reset modal
@@ -313,11 +354,11 @@ const App: React.FC = () => {
 
   const shareSystemLink = () => {
     const shareUrl = 'https://chat.whatsapp.com/JxNMSHencryAjK0xP0K52E?mode=gi_t';
-    const text = `💎 *VENOM ELITE - GRUPO VIP* 💎\n\n🚀 Entre no grupo de sinais mais assertivo de Moçambique!\n\n🔗 *LINK:* ${shareUrl}\n\n✅ *Extração de Lucro Garantida*`;
+    const text = `💎 *DARK BOT - GRUPO VIP* 💎\n\n🚀 Entre no grupo de sinais mais assertivo de Moçambique!\n\n🔗 *LINK:* ${shareUrl}\n\n✅ *Extração de Lucro Garantida*`;
     
     if (navigator.share) {
       navigator.share({
-        title: 'Venom Elite - Grupo VIP',
+        title: 'DARK BOT - Grupo VIP',
         text: text,
         url: shareUrl
       }).catch(() => {
@@ -406,23 +447,23 @@ const App: React.FC = () => {
   };
 
   const copyQuickAgenda = (item: AgendaItem) => {
-    const text = `🏛️ *CASA:* ${item.house}\n📈 *PAYOUT:* ${item.paying.toFixed(0)}%\n📊 *STATUS:* ${item.graphStatus}\n🕒 *HORA:* ${new Date().toLocaleTimeString()}\n\n🤖 *venom.b55(hack) Elite*`;
+    const text = `🏛️ *CASA:* ${item.house}\n📈 *PAYOUT:* ${item.paying.toFixed(0)}%\n📊 *STATUS:* ${item.graphStatus}\n🕒 *HORA:* ${new Date().toLocaleTimeString()}\n\n🤖 *dark.bot(hack)*`;
     navigator.clipboard.writeText(text);
     triggerToast("Status Copiado!");
   };
 
   const copyAgendaFull = (item: AgendaItem) => {
-    const text = `💎 *VENOM ELITE - AGENDA* 💎\n\n🏛️ *CASA:* ${item.house.toUpperCase()}\n📊 *STATUS:* ${item.graphStatus}\n📈 *PAYOUT:* ${item.paying.toFixed(0)}%\n🛡️ *INSIGHT:* "${item.efronInsight}"\n🕒 *HORA:* ${new Date().toLocaleTimeString()}\n\n🤖 *venom.b55(hack) Elite*`;
+    const text = `💎 *DARK BOT - AGENDA* 💎\n\n🏛️ *CASA:* ${item.house.toUpperCase()}\n📊 *STATUS:* ${item.graphStatus}\n📈 *PAYOUT:* ${item.paying.toFixed(0)}%\n🛡️ *INSIGHT:* "${item.efronInsight}"\n🕒 *HORA:* ${new Date().toLocaleTimeString()}\n\n🤖 *dark.bot(hack)*`;
     navigator.clipboard.writeText(text);
     triggerToast("Agenda Elite Copiada!");
   };
 
   const shareAgendaFull = () => {
-    const text = `💎 *VENOM ELITE - STATUS* 💎\n\n` + 
+    const text = `💎 *DARK BOT - STATUS* 💎\n\n` + 
       agendaData.map(item => `🏛️ ${item.house}: ${item.paying.toFixed(0)}% [${item.graphStatus}]`).join('\n') + 
-      `\n\n🤖 *venom.b55(hack) Elite*`;
+      `\n\n🤖 *dark.bot(hack)*`;
     if (navigator.share) {
-      navigator.share({ title: 'Status Venom Elite', text: text }).catch(() => triggerToast("Erro ao compartilhar"));
+      navigator.share({ title: 'Status DARK BOT', text: text }).catch(() => triggerToast("Erro ao compartilhar"));
     } else {
       navigator.clipboard.writeText(text);
       triggerToast("Copiado!");
@@ -440,9 +481,9 @@ const App: React.FC = () => {
       try {
         const response = await aiInstance.models.generateContent({
           model: "gemini-3-flash-preview",
-          contents: `Você é o MENTOR VENOM, um hacker de elite em Moçambique especializado no jogo Aviator. 
+          contents: `Você é o MENTOR DARK, um hacker de elite em Moçambique especializado no jogo Aviator. 
           Analise a casa ${selectedHouse.name}. 
-          Gere uma frase curta, impactante e técnica (máximo 15 palavras) em português de Moçambique sobre a brecha atual no algoritmo e a precisão dos sinais Venom. 
+          Gere uma frase curta, impactante e técnica (máximo 15 palavras) em português de Moçambique sobre a brecha atual no algoritmo e a precisão dos sinais DARK. 
           Use termos como "seed", "hash", "padrão" ou "injeção".`
         });
         mentorAnalysis = response.text || mentorAnalysis;
@@ -476,14 +517,14 @@ const App: React.FC = () => {
           timestamp: time.getTime(),
           house: selectedHouse.name,
           type: (selectedCandle === CandleType.PINK || isModoHacker) ? CandleType.PINK : CandleType.PURPLE,
-          probability: 99.9 + (Math.random() * 0.09),
+          probability: 99.95 + (Math.random() * 0.04),
           multiplier: multiplier,
           status: SignalStatus.WAITING,
-          seedHash: `0x${Math.random().toString(16).substring(2, 10).toUpperCase()}${Math.random().toString(16).substring(2, 6).toUpperCase()}`,
-          confidence: 99.9 + (Math.random() * 0.09),
-          gale: Math.random() > 0.7 ? 1 : 2,
+          seedHash: `0x${Math.random().toString(16).substring(2, 12).toUpperCase()}`,
+          confidence: 99.96 + (Math.random() * 0.03),
+          gale: Math.random() > 0.8 ? 1 : 2,
           secondaryMultiplier: multiplier === "2.0x+" ? "1.50x" : "2.0x",
-          quantumVerification: `QM-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
+          quantumVerification: `QM-${Math.random().toString(36).substring(2, 10).toUpperCase()}`
         });
       }
       setSignals(newSignals);
@@ -588,16 +629,16 @@ const App: React.FC = () => {
 
   const recalibrate = () => {
     setIsGlobalLoading(true);
-    triggerToast("Injetando Protocolo Quantum Sync...");
+    triggerToast("Injetando Protocolo Quantum Sync 2.0...");
     setTimeout(() => {
-      setSettings(prev => ({ ...prev, precision: 99.99 }));
+      setSettings(prev => ({ ...prev, precision: 99.99, algorithm: 'DARK.BOT-v2.0-ULTRA' }));
       setIsGlobalLoading(false);
-      triggerToast("Calibração Crítica Concluída! Assertividade 99.99%.");
-    }, 2000);
+      triggerToast("Calibração Crítica Concluída! Assertividade cravada em 99.99%.");
+    }, 2500);
   };
 
   const copySignal = (sig: Signal) => {
-    const text = `💎 *VENOM ELITE - QUANTUM SIGNAL* 💎\n\n🏛️ *CASA:* ${sig.house.toUpperCase()}\n⏰ *HORARIO:* ${sig.time}\n🎯 *ALVO:* ${sig.multiplier}\n🔥 *ASSERTIVIDADE:* ${sig.confidence?.toFixed(2) || sig.probability.toFixed(2)}%\n🧬 *SEED HASH:* ${sig.seedHash || 'N/A'}\n🛡️ *VERIFICAÇÃO:* QUANTUM SECURE\n\n✅ *ENTRADA AUTORIZADA (99.9% ELITE)*\n🤖 *venom.b55 (hack) Elite*`;
+    const text = `💎 *DARK BOT - QUANTUM SIGNAL* 💎\n\n🏛️ *CASA:* ${sig.house.toUpperCase()}\n⏰ *HORARIO:* ${sig.time}\n🎯 *ALVO:* ${sig.multiplier}\n🔥 *ASSERTIVIDADE:* ${sig.confidence?.toFixed(2) || sig.probability.toFixed(2)}%\n🧬 *SEED HASH:* ${sig.seedHash || 'N/A'}\n🛡️ *VERIFICAÇÃO:* QUANTUM SECURE\n\n✅ *ENTRADA AUTORIZADA (99.9% DARK)*\n🤖 *dark.bot (hack)*`;
     navigator.clipboard.writeText(text);
     triggerToast("Sinal Copiado para Área de Transferência!");
   };
@@ -606,7 +647,7 @@ const App: React.FC = () => {
     if (signals.length === 0) return;
     const houseName = selectedHouse?.name.toUpperCase() || "SISTEMA";
     const body = signals.slice(0, 50).map(sig => `⏰ ${sig.time} -> ${sig.multiplier} [${sig.confidence?.toFixed(2)}%]`).join('\n');
-    const text = `💎 *VENOM ELITE - LISTA QUANTUM* 💎\n\n🏛️ *CASA:* ${houseName}\n🔥 *ASSERTIVIDADE:* 99.99% ELITE\n🛡️ *PROTOCOLO:* QUANTUM SYNC\n\n${body}\n\n🤖 *venom.b55 (hack) Elite*`;
+    const text = `💎 *DARK BOT - LISTA QUANTUM* 💎\n\n🏛️ *CASA:* ${houseName}\n🔥 *ASSERTIVIDADE:* 99.99% DARK\n🛡️ *PROTOCOLO:* QUANTUM SYNC\n\n${body}\n\n🤖 *dark.bot (hack)*`;
     navigator.clipboard.writeText(text);
     triggerToast("Lista Elite Copiada!");
   };
@@ -615,7 +656,7 @@ const App: React.FC = () => {
     if (signals.length === 0) return;
     const houseName = selectedHouse?.name.toUpperCase() || "SISTEMA";
     const body = signals.slice(0, 50).map(sig => `⏰ ${sig.time} -> ${sig.multiplier} [${sig.confidence?.toFixed(2)}%]`).join('\n');
-    const text = `💎 *VENOM ELITE - LISTA QUANTUM* 💎\n\n🏛️ *CASA:* ${houseName}\n🔥 *ASSERTIVIDADE:* 99.99% ELITE\n🛡️ *PROTOCOLO:* QUANTUM SYNC\n\n${body}\n\n🤖 *venom.b55 (hack) Elite*`;
+    const text = `💎 *DARK BOT - LISTA QUANTUM* 💎\n\n🏛️ *CASA:* ${houseName}\n🔥 *ASSERTIVIDADE:* 99.99% DARK\n🛡️ *PROTOCOLO:* QUANTUM SYNC\n\n${body}\n\n🤖 *dark.bot (hack)*`;
     if (navigator.share) {
       navigator.share({ title: `Sinais ${houseName}`, text: text }).catch(() => triggerToast("Erro ao compartilhar"));
     } else {
@@ -661,7 +702,7 @@ const App: React.FC = () => {
     try {
       const response = await aiInstance.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Você é o MENTOR VENOM, um hacker de elite em Moçambique. O usuário perguntou: "${currentInput}". 
+        contents: `Você é o MENTOR DARK, um hacker de elite em Moçambique. O usuário perguntou: "${currentInput}". 
         Responda de forma curta, direta, impactante e com tom de expert. 
         Use gírias técnicas de hacker e mencione a realidade das apostas em Moçambique (Premier Bet, 888Starz, Elephant Bet). 
         Máximo 30 palavras. Seja motivador mas realista sobre gestão de banca.`
@@ -749,7 +790,7 @@ const App: React.FC = () => {
               notif.type === 'success' ? 'bg-emerald-500' : 'bg-rose-600 animate-pulse'
             }`} />
             <div className="flex-1">
-              <p className="text-[10px] font-black uppercase tracking-widest text-secondary opacity-60 mb-1">Sistema Venom Alerta</p>
+              <p className="text-[10px] font-black uppercase tracking-widest text-secondary opacity-60 mb-1">Sistema DARK Alerta</p>
               <p className="text-[11px] font-bold text-primary leading-tight">{notif.message}</p>
             </div>
           </div>
@@ -782,7 +823,7 @@ const App: React.FC = () => {
           <div className="mt-12 w-48 h-1 bg-white/5 rounded-full overflow-hidden border border-white/10">
             <div className="h-full bg-accent animate-progress-fast shadow-[0_0_10px_rgba(0,255,157,0.5)]" />
           </div>
-          <p className="mt-4 text-[7px] font-mono text-secondary/40 uppercase tracking-widest">Sincronizando com Mentor Venom...</p>
+          <p className="mt-4 text-[7px] font-mono text-secondary/40 uppercase tracking-widest">Sincronizando com Mentor DARK...</p>
         </div>
       )}
 
@@ -795,25 +836,25 @@ const App: React.FC = () => {
 
           <div className="space-y-4">
             <div className="glass-card p-5 rounded-3xl space-y-4">
-              <h3 className="text-[9px] font-black text-accent uppercase tracking-widest border-b border-white/5 pb-2">Status do Algoritmo</h3>
+              <h3 className="text-[10px] font-serif italic text-accent uppercase tracking-widest border-b border-white/5 pb-2">Status do Algoritmo</h3>
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
                   <span className="text-[10px] text-secondary uppercase font-bold">Versão</span>
-                  <span className="text-[10px] text-primary font-black">Venom.Elite-v6.0</span>
+                  <span className="text-[10px] text-primary font-black tracking-widest">{settings.algorithm}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-[10px] text-secondary uppercase font-bold">Assertividade Base</span>
-                  <span className="text-[10px] text-emerald-400 font-black">99.8%</span>
+                  <span className="text-[10px] text-accent font-black">{settings.precision}%</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-[10px] text-secondary uppercase font-bold">Modo Elite</span>
-                  <span className="text-[10px] text-accent font-black">ATIVADO</span>
+                  <span className="text-[10px] text-accent font-black animate-pulse">ATIVADO</span>
                 </div>
                 <button 
                   onClick={recalibrate}
-                  className="w-full py-2.5 bg-accent/10 border border-accent/20 text-accent rounded-xl font-black text-[8px] uppercase tracking-widest active:scale-95 transition-all"
+                  className="w-full py-2.5 bg-accent/10 border border-accent/20 text-accent rounded-xl font-black text-[9px] uppercase tracking-widest active:scale-95 transition-all shadow-[0_0_15px_rgba(0,255,157,0.1)] group-hover:bg-accent group-hover:text-black"
                 >
-                  Forçar Recalibração (99.9%)
+                  {settings.precision === 99.99 ? 'SISTEMA NO LIMITE (99.99%)' : 'Forçar Recalibração (99.9%)'}
                 </button>
               </div>
             </div>
@@ -1235,7 +1276,7 @@ const App: React.FC = () => {
         <div className="px-5 space-y-6 pb-20 animate-in fade-in">
           <div className="text-center space-y-1">
              <div className="inline-block px-3 py-1 bg-accent/10 border border-accent/20 rounded-full">
-                <p className="text-[7px] text-accent uppercase tracking-widest font-black">Hack Venom Elite Confirmado</p>
+                <p className="text-[7px] text-accent uppercase tracking-widest font-black">Hack DARK BOT Confirmado</p>
              </div>
              <h2 className="text-2xl font-black text-primary italic">Sala <span className="text-accent">Elite</span></h2>
              {selectedHouse && (
@@ -1407,7 +1448,7 @@ const App: React.FC = () => {
                 <div key={msg.id} className={`p-5 rounded-3xl space-y-3 border ${msg.isUser ? 'bg-white/5 border-white/10 ml-8' : 'glass-card border-white/5 mr-8'}`}>
                   <div className="flex items-center justify-between">
                     <span className={`text-[7px] font-black uppercase tracking-widest ${msg.isUser ? 'text-secondary' : 'text-accent'}`}>
-                      {msg.isUser ? 'VOCÊ' : 'MENTOR VENOM'}
+                      {msg.isUser ? 'VOCÊ' : 'MENTOR DARK'}
                     </span>
                     <span className="text-[6px] text-secondary/40 font-mono">
                       {new Date(msg.timestamp).toLocaleTimeString()}
@@ -1418,8 +1459,8 @@ const App: React.FC = () => {
                   </p>
                   {!msg.isUser && (
                     <div className="flex gap-2 pt-2">
-                      <button onClick={() => { navigator.clipboard.writeText(`${msg.text}\n\nVenom elite`); triggerToast("Copiado!"); }} className="flex-1 py-2 bg-white/5 border border-white/5 text-primary text-[8px] font-black uppercase rounded-lg">Copiar</button>
-                      <button onClick={() => { if(navigator.share) navigator.share({text: `${msg.text}\n\nVenom elite`}); }} className="flex-1 py-2 bg-accent/10 border border-accent/20 text-accent text-[8px] font-black uppercase rounded-lg">Share</button>
+                      <button onClick={() => { navigator.clipboard.writeText(`${msg.text}\n\nDARK BOT`); triggerToast("Copiado!"); }} className="flex-1 py-2 bg-white/5 border border-white/5 text-primary text-[8px] font-black uppercase rounded-lg">Copiar</button>
+                      <button onClick={() => { if(navigator.share) navigator.share({text: `${msg.text}\n\nDARK BOT`}); }} className="flex-1 py-2 bg-accent/10 border border-accent/20 text-accent text-[8px] font-black uppercase rounded-lg">Share</button>
                     </div>
                   )}
                 </div>
@@ -1504,7 +1545,7 @@ const App: React.FC = () => {
                     <p className="text-xl font-black text-primary tracking-widest">
                       {paymentMethod === 'mpesa' ? '84 555 0673' : '87 336 1445'}
                     </p>
-                    <p className="text-[7px] font-bold text-accent uppercase">Nome: VENOM ELITE BOT</p>
+                    <p className="text-[7px] font-bold text-accent uppercase">Nome: DARK BOT</p>
                   </div>
                   <p className="text-[9px] text-secondary font-bold uppercase tracking-widest leading-relaxed px-4">
                     Após o pagamento, clique no botão abaixo para enviar o comprovativo e receber sua chave.

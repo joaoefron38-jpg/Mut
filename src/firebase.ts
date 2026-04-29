@@ -4,6 +4,9 @@ import { getFirestore, initializeFirestore } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
 // Initialize Firebase SDK
+const isConfigured = firebaseConfig.projectId && firebaseConfig.projectId !== 'remixed-project-id';
+export const isFirebaseConfigured = () => isConfigured;
+
 const app = initializeApp(firebaseConfig);
 
 // Initialize Firestore with long polling to avoid connection issues in restricted environments

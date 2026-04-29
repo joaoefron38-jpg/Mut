@@ -66,11 +66,11 @@ export default function Layout({ children, activeScreen, setScreen, title, theme
             style={{ backgroundColor: themeConfig.accentColor }}
             className="w-10 h-10 rounded-xl flex items-center justify-center font-black text-black text-[10px] shadow-lg cursor-pointer active:scale-90 transition-all border border-white/20"
           >
-            V55
+            DBOT
           </div>
           <div>
-            <h1 className="font-black text-xs leading-tight tracking-tighter text-primary">Venom <span className="text-accent">Elite</span></h1>
-            <p className="text-[8px] font-bold text-secondary uppercase tracking-[0.2em]">Hacker System</p>
+            <h1 className="font-black text-xs leading-tight tracking-tighter text-primary">DARK <span className="text-accent">BOT</span></h1>
+            <p className="text-[8px] font-bold text-secondary uppercase tracking-[0.2em]">Quantum Intelligence</p>
           </div>
         </div>
 
